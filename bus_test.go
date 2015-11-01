@@ -67,6 +67,26 @@ func TestPublish(t *testing.T) {
 	assert.True(t, dereg2(), "second handler should unsubscribe")
 }
 
+// TestPublishAll
+func TestPublishAll(t *testing.T) {
+	var a, b, c int
+	defer SubscribeFunc("a", func(_ *Bus, tp, v interface{}) {
+		a++
+	})()
+	defer SubscribeFunc("b", func(_ *Bus, tp, v interface{}) {
+		b++
+	})()
+	defer SubscribeFunc("c", func(_ *Bus, tp, v interface{}) {
+		c++
+	})()
+	n, err := PublishAll(nil)
+	assert.Equal(t, 3, n)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, a)
+	assert.Equal(t, 1, b)
+	assert.Equal(t, 1, c)
+}
+
 // TestPublishAsync asserts that the `Async` flag does not block `Publish`.
 func TestPublishAsync(t *testing.T) {
 	c := make(chan int)
@@ -124,4 +144,30 @@ func TestOnceAync(t *testing.T) {
 	c <- 0
 	assert.Equal(t, 1, <-c)
 	assert.Equal(t, 1, cnt)
+}
+
+type mockHandler struct {
+	t interface{}
+	v interface{}
+}
+
+func (h *mockHandler) On(b *Bus, t, v interface{}) {
+	h.t = t
+	h.v = v
+}
+
+func TestHandler(t *testing.T) {
+	h := &mockHandler{}
+	Subscribe("test", h)
+	n, err := Publish("test", "world")
+	assert.Equal(t, 1, n)
+	assert.NoError(t, err)
+	assert.Equal(t, "test", h.t)
+	assert.Equal(t, "world", h.v)
+
+	Unsubscribe("test", h)
+	n, err = Publish("test", "byebye")
+	assert.Equal(t, 0, n)
+	assert.NoError(t, err)
+	assert.Equal(t, "world", h.v)
 }

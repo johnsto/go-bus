@@ -122,47 +122,51 @@ func (b *Bus) Unsubscribe(topic interface{}, h Handler) bool {
 	return false
 }
 
+func (b *Bus) publish(hs []Handler, t, v interface{}, flags ...PublishFlag) (int, error) {
+	var fs PublishFlag = 0
+	for _, flag := range flags {
+		fs = fs | flag
+	}
+
+	if fs&Async != 0 {
+		// Call each handler in a separate Goroutine
+		for _, h := range hs {
+			go h.On(b, t, v)
+		}
+	} else {
+		for _, h := range hs {
+			h.On(b, t, v)
+		}
+	}
+	return len(hs), nil
+}
+
 // Publish sends the given value to all handlers subscribed to the named
 // topic on this Bus. If the `Async` flag is passed, this function will call
 // each handler in a separate goroutine and return without blocking.
 func (b *Bus) Publish(topic interface{}, value interface{}, flags ...PublishFlag) (int, error) {
-	var f PublishFlag = 0
-	for _, flag := range flags {
-		f = f | flag
-	}
-
 	b.lock.RLock()
 	hs := b.topics[topic]
 	b.lock.RUnlock()
 
-	if f&Async != 0 {
-		// Call each handler in a separate Goroutine
-		for _, h := range hs {
-			go h.On(b, topic, value)
-		}
-		return len(hs), nil
-	}
-
-	for _, h := range hs {
-		h.On(b, topic, value)
-	}
-	return len(hs), nil
+	return b.publish(hs, topic, value, flags...)
 }
 
 // PublishAll sends the given value to all handlers registered on all topics
 // on this Bus. If the same Handler is registered on multiple topics or buses,
 // the handler will be called multiple times. Returns the number of handlers
 // fired.
-func (b *Bus) PublishAll(value interface{}) (int, error) {
+func (b *Bus) PublishAll(value interface{}, flags ...PublishFlag) (int, error) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
 	c := 0
 	for t, hs := range b.topics {
-		for _, h := range hs {
-			go h.On(b, t, value)
+		if cc, err := b.publish(hs, t, value, flags...); err != nil {
+			return c, err
+		} else {
+			c += cc
 		}
-		c += len(hs)
 	}
 
 	return c, nil
@@ -192,6 +196,11 @@ func OnceFunc(topic interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFu
 // topic on the default Bus.
 func Publish(topic interface{}, value interface{}, flags ...PublishFlag) (int, error) {
 	return getDefaultBus().Publish(topic, value, flags...)
+}
+
+// PublishAll sends the given value to all handlers on the default Bus.
+func PublishAll(value interface{}, flags ...PublishFlag) (int, error) {
+	return getDefaultBus().PublishAll(value, flags...)
 }
 
 // Unsubscribe removes the specified handler from the given topic on the
