@@ -84,7 +84,8 @@ func (b *Bus) SubscribeFunc(topic interface{}, h func(b *Bus, t, v interface{}))
 
 // OnceFunc registers the handler function on the given topic, returning
 // a function that can be called to deregister itself. It will ensure that
-// the passed handler function is called exactly once.
+// the passed handler function is called at most exactly once and deregisters
+// itself after use.
 func (b *Bus) OnceFunc(topic interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
 	once := sync.Once{}
 	var hh HandlerFunc
