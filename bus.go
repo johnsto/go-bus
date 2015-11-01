@@ -58,45 +58,45 @@ func NewBus() *Bus {
 // Subscribe causes the passed Handler to be called when data is published
 // to the named topic on this Bus. It returns a function that can be called to
 // unsubscribe the handler.
-func (b *Bus) Subscribe(t interface{}, h Handler) UnsubscribeFunc {
+func (b *Bus) Subscribe(topic interface{}, h Handler) UnsubscribeFunc {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
 	// Add handler to topic, creating topic if not there already
-	if hs, ok := b.topics[t]; !ok {
-		b.topics[t] = []Handler{h}
+	if hs, ok := b.topics[topic]; !ok {
+		b.topics[topic] = []Handler{h}
 	} else {
-		b.topics[t] = append(hs, h)
+		b.topics[topic] = append(hs, h)
 	}
 
 	// Unsubscribe function
 	return func() bool {
-		return b.Unsubscribe(t, h)
+		return b.Unsubscribe(topic, h)
 	}
 }
 
 // SubscribeFunc registers the handler function on the given topic, returning
 // a function that can be called to deregister itself.
-func (b *Bus) SubscribeFunc(t interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
+func (b *Bus) SubscribeFunc(topic interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
 	hf := HandlerFunc(h)
-	return b.Subscribe(t, &hf)
+	return b.Subscribe(topic, &hf)
 }
 
 // Unsubscribe removes the specified handler from the given topic on this Bus,
 // returning true on success (i.e. the handler was found and removed)
-func (b *Bus) Unsubscribe(t interface{}, h Handler) bool {
+func (b *Bus) Unsubscribe(topic interface{}, h Handler) bool {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
 	// Find and remove handler from topic
-	a := b.topics[t]
+	a := b.topics[topic]
 	for i, h2 := range a {
 		if h2 == h {
-			b.topics[t] = append(a[:i], a[i+1:]...)
+			b.topics[topic] = append(a[:i], a[i+1:]...)
 
 			// Remove topic if no handlers are subscribed to it
-			if len(b.topics[t]) == 0 {
-				delete(b.topics, t)
+			if len(b.topics[topic]) == 0 {
+				delete(b.topics, topic)
 			}
 
 			return true
@@ -109,42 +109,42 @@ func (b *Bus) Unsubscribe(t interface{}, h Handler) bool {
 // Publish sends the given value to all handlers subscribed to the named
 // topic on this Bus. If the `Async` flag is passed, this function will call
 // each handler in a separate goroutine and return without blocking.
-func (b *Bus) Publish(t interface{}, v interface{}, flags ...PublishFlag) (int, error) {
+func (b *Bus) Publish(topic interface{}, value interface{}, flags ...PublishFlag) (int, error) {
 	var f PublishFlag = 0
 	for _, flag := range flags {
 		f = f | flag
 	}
 
 	b.lock.RLock()
-	hs := b.topics[t]
+	hs := b.topics[topic]
 	b.lock.RUnlock()
 
 	if f&Async != 0 {
+		// Call each handler in a separate Goroutine
 		for _, h := range hs {
-			go h.On(b, t, v)
+			go h.On(b, topic, value)
 		}
 		return len(hs), nil
 	}
 
 	for _, h := range hs {
-		h.On(b, t, v)
+		h.On(b, topic, value)
 	}
 	return len(hs), nil
 }
 
 // PublishAll sends the given value to all handlers registered on all topics
-// on this Bus. Each handler is called in its own goroutine, so this
-// function will return immediately with the number of handlers called.
-// If the same Handler is registered on multiple topics or buses, the handler
-// will be called multiple times.
-func (b *Bus) PublishAll(v interface{}) (int, error) {
+// on this Bus. If the same Handler is registered on multiple topics or buses,
+// the handler will be called multiple times. Returns the number of handlers
+// fired.
+func (b *Bus) PublishAll(value interface{}) (int, error) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
 	c := 0
 	for t, hs := range b.topics {
 		for _, h := range hs {
-			go h.On(b, t, v)
+			go h.On(b, t, value)
 		}
 		c += len(hs)
 	}
@@ -155,25 +155,25 @@ func (b *Bus) PublishAll(v interface{}) (int, error) {
 // Subscribe causes the passed Handler to be called when data is published
 // to the named topic on the default Bus. It returns a function that can be
 // called to unsubscribe the handler.
-func Subscribe(t interface{}, h Handler) UnsubscribeFunc {
-	return getDefaultBus().Subscribe(t, h)
+func Subscribe(topic interface{}, h Handler) UnsubscribeFunc {
+	return getDefaultBus().Subscribe(topic, h)
 }
 
 // SubscribeFunc registers the handler function on the given topic, returning
 // a function that can be called to deregister itself.
-func SubscribeFunc(t interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
-	return getDefaultBus().SubscribeFunc(t, h)
+func SubscribeFunc(topic interface{}, fn func(b *Bus, t, v interface{})) UnsubscribeFunc {
+	return getDefaultBus().SubscribeFunc(topic, fn)
 }
 
 // Publish sends the given value to all handlers subscribed to the named
 // topic on the default Bus.
-func Publish(t interface{}, v interface{}, flags ...PublishFlag) (int, error) {
-	return getDefaultBus().Publish(t, v, flags...)
+func Publish(topic interface{}, value interface{}, flags ...PublishFlag) (int, error) {
+	return getDefaultBus().Publish(topic, value, flags...)
 }
 
 // Unsubscribe removes the specified handler from the given topic on the
 // default Bus, returning true on success (i.e. the handler was found and
 // removed)
-func Unsubscribe(t interface{}, h Handler) {
-	getDefaultBus().Unsubscribe(t, h)
+func Unsubscribe(topic interface{}, h Handler) {
+	getDefaultBus().Unsubscribe(topic, h)
 }
