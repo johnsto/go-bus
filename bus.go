@@ -132,22 +132,6 @@ func (b *Bus) Publish(t interface{}, v interface{}, flags ...PublishFlag) (int, 
 	return len(hs), nil
 }
 
-// Send sends the given value to all handlers subscribed to the named
-// topic on this Bus. In contrast to `Publish`, `Send` calls each Handler
-// in the order they were registered, and only returns once all Handlers have
-// been fired.
-func (b *Bus) Send(t interface{}, v interface{}) int {
-	b.lock.RLock()
-	defer b.lock.RUnlock()
-
-	hs := b.topics[t]
-	for _, h := range hs {
-		h.On(b, t, v)
-	}
-
-	return len(hs)
-}
-
 // PublishAll sends the given value to all handlers registered on all topics
 // on this Bus. Each handler is called in its own goroutine, so this
 // function will return immediately with the number of handlers called.
