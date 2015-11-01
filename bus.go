@@ -82,6 +82,21 @@ func (b *Bus) SubscribeFunc(topic interface{}, h func(b *Bus, t, v interface{}))
 	return b.Subscribe(topic, &hf)
 }
 
+// OnceFunc registers the handler function on the given topic, returning
+// a function that can be called to deregister itself. It will ensure that
+// the passed handler function is called exactly once.
+func (b *Bus) OnceFunc(topic interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
+	once := sync.Once{}
+	var hh HandlerFunc
+	hh = HandlerFunc(func(b *Bus, t, v interface{}) {
+		once.Do(func() {
+			h(b, t, v)
+			b.Unsubscribe(topic, &hh)
+		})
+	})
+	return b.Subscribe(topic, &hh)
+}
+
 // Unsubscribe removes the specified handler from the given topic on this Bus,
 // returning true on success (i.e. the handler was found and removed)
 func (b *Bus) Unsubscribe(topic interface{}, h Handler) bool {
@@ -159,10 +174,17 @@ func Subscribe(topic interface{}, h Handler) UnsubscribeFunc {
 	return getDefaultBus().Subscribe(topic, h)
 }
 
-// SubscribeFunc registers the handler function on the given topic, returning
-// a function that can be called to deregister itself.
+// SubscribeFunc registers the handler function on the given topic of the
+// default Bus, returning a function that can be called to deregister itself.
 func SubscribeFunc(topic interface{}, fn func(b *Bus, t, v interface{})) UnsubscribeFunc {
 	return getDefaultBus().SubscribeFunc(topic, fn)
+}
+
+// OnceFunc registers the handler function on the given topic of the default
+// Bus, returning a function that can be called to deregister itself. It will
+// ensure that the passed handler function is called exactly once.
+func OnceFunc(topic interface{}, h func(b *Bus, t, v interface{})) UnsubscribeFunc {
+	return getDefaultBus().OnceFunc(topic, h)
 }
 
 // Publish sends the given value to all handlers subscribed to the named

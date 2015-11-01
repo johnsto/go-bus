@@ -69,18 +69,59 @@ func TestPublish(t *testing.T) {
 
 // TestPublishAsync asserts that the `Async` flag does not block `Publish`.
 func TestPublishAsync(t *testing.T) {
-	c := make(chan interface{})
+	c := make(chan int)
 	sw := false
 	defer SubscribeFunc("test", func(b *Bus, tp, v interface{}) {
-		<-c // wait for signal
+		assert.Equal(t, 0, <-c) // wait for signal
 		assert.True(t, sw)
-		c <- true
+		c <- 1
 	})()
 
 	n, err := Publish("test", "hello", Async)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, n)
 	sw = true
-	c <- true
-	<-c
+	c <- 0
+	assert.Equal(t, 1, <-c)
+}
+
+func TestOnce(t *testing.T) {
+	cnt := 0
+	defer OnceFunc("test", func(b *Bus, tp, v interface{}) {
+		cnt++
+		assert.Equal(t, 1, cnt)
+	})()
+
+	n, err := Publish("test", "hello")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, 1, cnt)
+
+	n, err = Publish("test", "hello")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, 1, cnt)
+}
+
+func TestOnceAync(t *testing.T) {
+	c := make(chan int)
+	cnt := 0
+	defer OnceFunc("test", func(b *Bus, tp, v interface{}) {
+		assert.Equal(t, 0, <-c)
+		cnt++
+		assert.Equal(t, 1, cnt)
+		c <- 1
+	})()
+
+	n, err := Publish("test", "hello", Async)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	n, err = Publish("test", "hello", Async)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	c <- 0
+	assert.Equal(t, 1, <-c)
+	assert.Equal(t, 1, cnt)
 }
