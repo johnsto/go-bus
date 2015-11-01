@@ -182,8 +182,7 @@ func SubscribeFunc(t interface{}, h func(b *Bus, t, v interface{})) UnsubscribeF
 }
 
 // Publish sends the given value to all handlers subscribed to the named
-// topic on the default Bus, calling each Handler in a separate Goroutine
-// and returning immediately.
+// topic on the default Bus.
 func Publish(t interface{}, v interface{}, flags ...PublishFlag) (int, error) {
 	return getDefaultBus().Publish(t, v, flags...)
 }
