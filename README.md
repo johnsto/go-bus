@@ -41,7 +41,7 @@ Using a custom bus and deregistering a subscriber after use:
 	b.Publish("kills", Kill{Victim: "Vortigaunt"})
 	b.Publish("kills", Kill{Victim: "Breen"})
 
-Sending events asynchronously using a non-blocking Publish call:
+Sending events asynchronously using a non-blocking `Publish` call via the `Async` flag:
 
 	// Listen for releases, and start download immediately
 	bus.SubscribeFunc("release", func(b *Bus, t, v interface{}) {
@@ -58,7 +58,9 @@ Sending events asynchronously using a non-blocking Publish call:
 		}
 	})
 
-	<- hl3chan
-	bus.Publish("games", "hl3", Async)
+	for releases := range releaseChan {
+		// Call asynchronously as handlers may take some time...
+		bus.Publish("games", release, Async)
+	}
 
 
